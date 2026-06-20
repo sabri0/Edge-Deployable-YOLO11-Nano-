@@ -203,17 +203,4 @@ The dashboard binds to `127.0.0.1` only (local use).
 
 ---
 
-## 9. What this code corrects vs. the reviewed manuscript
 
-1. **Angle definition.** The manuscript's Eq. (1) is the **knee** angle
-   (hip–knee–ankle) but is labelled "trunk-to-thigh". `slr_core.py` computes
-   **both** angles, each correctly named, and derives the true trunk-to-thigh
-   (hip-flexion) angle from the **shoulder** keypoint that YOLO11-pose provides —
-   something 3-joint (hip/knee/ankle) tracking cannot do.
-2. **Reference standard.** Validation is against the dataset's own
-   motion-capture-derived 2D ground truth, not subjective observation.
-3. **Statistics.** The pipeline emits **per-session** aggregates so downstream
-   tests can cluster by session/subject, avoiding the frame-level
-   pseudoreplication that inflates significance and shrinks confidence intervals.
-
-See `NOVELTY_AND_RELATED_WORK.md` and `RESULTS_ARTICLE.md` for the full write-up.

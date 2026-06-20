@@ -1,5 +1,30 @@
+# ---------------------------------------------------------------------------
+# Core pose pipeline (slr_core.py, uco_slr_pipeline.py, train/eval/build)
+# ---------------------------------------------------------------------------
 ultralytics>=8.3.0
-scipy>=1.10
+torch>=2.0          # pulled in by ultralytics; for an NVIDIA GPU install the
+torchvision>=0.15   # CUDA wheels: --index-url https://download.pytorch.org/whl/cu124
+
+# ---------------------------------------------------------------------------
+# Numerics / computer vision / plotting
+# ---------------------------------------------------------------------------
 numpy>=1.24
+scipy>=1.10
 opencv-python>=4.8
-pandas>=2.0
+matplotlib>=3.7     # figures + dashboard angle plots (make_figures.py, webapp)
+pandas>=2.0         # referenced by the pipeline; optional for the CSV reports
+
+# ---------------------------------------------------------------------------
+# Web dashboard  (webapp/app.py)
+# ---------------------------------------------------------------------------
+flask>=3.0
+
+# ---------------------------------------------------------------------------
+# MediaPipe (BlazePose) baseline  (mediapipe_slr.py)
+# ---------------------------------------------------------------------------
+mediapipe>=0.10
+
+# ---------------------------------------------------------------------------
+# Revised manuscript generation  (generate_docx.py)
+# ---------------------------------------------------------------------------
+python-docx>=1.1
