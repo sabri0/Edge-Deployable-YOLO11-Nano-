@@ -76,8 +76,12 @@ python make_test_clip.py
 # (b) Run the pipeline on it
 python uco_slr_pipeline.py --video test_slr.mp4 --side r
 
-# (c) Live webcam (press the window's close button / Ctrl+C to stop)
+# (c) Live webcam — opens an annotated real-time window (skeleton + knee/
+#     trunk-thigh angles + fps). Press q or Esc in the window to stop.
 python uco_slr_pipeline.py --webcam 0 --side r
+
+# Want the same live window while replaying a video file? add --show
+python uco_slr_pipeline.py --video test_slr.mp4 --side r --show
 ```
 
 Output: a per-session CSV (`slr_session_report.csv`) with latency, fps,
@@ -86,7 +90,48 @@ conformity.
 
 ---
 
-## 4. Get the dataset
+## 4. Real-time live analysis
+
+Run YOLO11-pose per frame on a webcam (or any video) and watch the skeleton and
+joint angles update live. This is the same `process_video` loop used everywhere
+else, so the numbers match the batch results.
+
+```powershell
+# Live webcam: opens an annotated window. Press q or Esc to stop.
+python uco_slr_pipeline.py --webcam 0 --side r
+
+# Replay a video file with the live window:
+python uco_slr_pipeline.py --video datasets/clips_mp4/1/07/cam2.mp4 --side r --show
+
+# Pick the leg / model / device:
+python uco_slr_pipeline.py --webcam 0 --side l --model yolo11n-pose.pt --device 0
+```
+
+**On-screen overlay:** the trunk→hip→knee→ankle skeleton, the live **knee** angle,
+the true **trunk-to-thigh (hip-flexion)** angle, and a running **fps** counter
+(smoothed over the last ~30 frames).
+
+**Controls & flags:**
+
+| Flag | Effect |
+|------|--------|
+| `--show` | Force the live window on (default for `--video` is off). |
+| `--no-show` | Disable the window even for `--webcam` (headless / benchmarking). |
+| `--side l\|r` | Which leg to measure. |
+| `--device 0\|cpu` | GPU index or CPU (default: auto-detect). |
+| `q` or `Esc` | Quit the live window. |
+
+The live window is **on by default for `--webcam`** and **off for `--video`**.
+On exit, the session summary still prints and is written to
+`slr_session_report.csv`.
+
+> **Performance:** ~10 fps on CPU; **30+ fps on an NVIDIA GPU** (see the GPU note
+> in §2). The live window needs GUI-enabled OpenCV — the `opencv-python` wheel in
+> `requirements.txt` has it (only `opencv-python-headless` would not).
+
+---
+
+## 5. Get the dataset
 
 **UCO Physical Rehabilitation dataset**
 Aguilar-Ortega R, Berral-Soler R, Jiménez-Velasco I, *et al.* "UCO Physical
@@ -122,7 +167,7 @@ build/train/eval/dashboard scripts assume `datasets/clips_mp4/`.
 
 ---
 
-## 5. Validate on the dataset
+## 6. Validate on the dataset
 
 ```powershell
 # Proposed model (subjects 1-3, both SLR exercises, auto leg resolution)
@@ -138,7 +183,7 @@ UCO ground-truth knee angle).
 
 ---
 
-## 6. Full reproduction workflow
+## 7. Full reproduction workflow
 
 Run these in order. Each step writes artefacts the next step (and the article)
 consumes.
@@ -172,7 +217,7 @@ python generate_docx.py
 
 ---
 
-## 7. Web dashboard
+## 8. Web dashboard
 
 ```powershell
 pip install flask
@@ -190,7 +235,7 @@ The dashboard binds to `127.0.0.1` only (local use).
 
 ---
 
-## 8. Outputs reference
+## 9. Outputs reference
 
 | Artefact | Produced by |
 |----------|-------------|

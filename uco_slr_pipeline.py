@@ -80,9 +80,43 @@ def keypoints_from_result(res):
     return xy[idx]
 
 
-def process_video(model, source, side="r", target_size=640, warmup=10, device=None):
+# Trunk + measured-leg links drawn on the live feed.
+_DISPLAY_LINKS = (("shoulder", "hip"), ("hip", "knee"), ("knee", "ankle"))
+
+
+def _draw_live(frame, kp, side, knee_ang, hip_ang, fps):
+    """Overlay the trunk/leg skeleton, knee & trunk-thigh angles, and live fps."""
+    import cv2
+
+    def pt(name):
+        return tuple(int(v) for v in kp[COCO[f"{side}_{name}"]])
+
+    for a, b in _DISPLAY_LINKS:
+        pa, pb = pt(a), pt(b)
+        if min(pa) > 0 and min(pb) > 0:
+            cv2.line(frame, pa, pb, (0, 220, 0), 3)
+    for name in ("shoulder", "hip", "knee", "ankle"):
+        p = pt(name)
+        if min(p) > 0:
+            cv2.circle(frame, p, 6, (0, 0, 255), -1)
+    if knee_ang is not None:
+        cv2.putText(frame, f"knee={knee_ang:.1f} deg", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+        cv2.putText(frame, f"trunk-thigh(hip)={hip_ang:.1f} deg", (10, 62),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+    cv2.putText(frame, f"{fps:.1f} fps  (q/Esc to quit)", (10, frame.shape[0] - 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
+    return frame
+
+
+def process_video(model, source, side="r", target_size=640, warmup=10,
+                  device=None, show=False, win="SLR real-time"):
     """Run YOLO11-pose over a video/stream. Returns dict of per-frame series
-    plus mean inference latency (ms/frame)."""
+    plus mean inference latency (ms/frame).
+
+    show=True opens a live annotated window (skeleton + angles + running fps);
+    press 'q' or Esc to stop early. This is the only safe way to run the webcam,
+    which otherwise streams forever with no exit condition."""
     import cv2
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
@@ -100,12 +134,29 @@ def process_video(model, source, side="r", target_size=640, warmup=10, device=No
         if fi >= warmup:
             lat.append(dt)
         kp = keypoints_from_result(res)
+        knee_ang = hip_ang = None
         if kp is not None and np.all(kp[[COCO[f"{side}_hip"], COCO[f"{side}_knee"],
                                         COCO[f"{side}_ankle"]]] > 0):
-            knee.append(knee_flexion_angle(kp, side))
-            hip.append(hip_flexion_angle(kp, side))
+            knee_ang = knee_flexion_angle(kp, side)
+            hip_ang = hip_flexion_angle(kp, side)
+            knee.append(knee_ang)
+            hip.append(hip_ang)
+        if show:
+            # smooth the displayed fps over the last ~30 timed frames
+            cur_fps = 1000.0 / np.mean(lat[-30:]) if lat else 1000.0 / max(dt, 1e-6)
+            if kp is not None:
+                _draw_live(frame, kp, side, knee_ang, hip_ang, cur_fps)
+            else:
+                cv2.putText(frame, f"{cur_fps:.1f} fps  (no person)  q/Esc to quit",
+                            (10, frame.shape[0] - 15), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.7, (0, 0, 255), 2)
+            cv2.imshow(win, frame)
+            if (cv2.waitKey(1) & 0xFF) in (ord("q"), 27):  # q or Esc
+                break
         fi += 1
     cap.release()
+    if show:
+        cv2.destroyAllWindows()
     return {
         "knee_raw": np.asarray(knee, float),
         "hip_raw": np.asarray(hip, float),
@@ -254,6 +305,12 @@ def main():
     ap.add_argument("--device", default=None,
                     help="inference device: '0'/'cuda' for GPU, 'cpu' for CPU. "
                          "Default: auto (GPU if available).")
+    ap.add_argument("--show", dest="show", action="store_true", default=None,
+                    help="show a live annotated window (skeleton + knee/trunk-thigh "
+                         "angles + running fps); press q/Esc to quit. Default: on "
+                         "for --webcam, off for --video.")
+    ap.add_argument("--no-show", dest="show", action="store_false",
+                    help="disable the live window even in --webcam mode.")
     args = ap.parse_args()
 
     if not (args.uco_root or args.video or args.webcam is not None):
@@ -283,7 +340,9 @@ def main():
         src = args.video if args.video else args.webcam
         # 'auto' only resolves from the UCO metadata; for a lone clip default to 'r'.
         vid_side = "r" if args.side == "auto" else args.side
-        series = process_video(model, src, side=vid_side, device=device)
+        # Live window: on by default for webcam, opt-in (--show) for video files.
+        show = args.show if args.show is not None else (args.webcam is not None)
+        series = process_video(model, src, side=vid_side, device=device, show=show)
         summ = summarise_session(series, args.hip_lo, args.hip_hi)
         print("\nSession summary:", summ)
         _write_csv([dict(summ, source=str(src))] if summ else [], args.out)
