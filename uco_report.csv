@@ -1,0 +1,7 @@
+camera,cv_pct,exercise,fps,frame_conformity_pct,latency_ms,n_frames,n_tracked,peak_hip_flexion_deg,rmssd_deg,session_conformant,sigma_deg,subject
+cam2.mp4,6.69,03,54.5,24.5,18.35,844,844,44.3,3.95,False,11.16,1
+cam2.mp4,7.82,07,53.3,30.9,18.77,708,708,44.3,2.8,False,12.95,1
+cam2.mp4,6.45,03,48.6,36.5,20.56,882,882,44.2,3.23,False,10.61,2
+cam2.mp4,6.78,07,44.6,20.0,22.41,896,896,50.1,4.3,False,11.37,2
+cam2.mp4,5.22,03,49.5,26.4,20.21,1288,1288,29.3,3.69,False,8.73,3
+cam2.mp4,2.85,07,49.1,2.9,20.36,1593,1593,29.5,1.84,False,4.96,3

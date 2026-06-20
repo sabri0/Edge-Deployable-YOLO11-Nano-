@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automated SLR / PLSR Assessment — Results & Novelty</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--ink:#e6edf3;--mut:#8b949e;
+        --acc:#2f81f7;--good:#3fb950;--warn:#d29922;--bad:#f85149}
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial;
+       background:var(--bg);color:var(--ink)}
+  header{padding:28px 32px;border-bottom:1px solid var(--line);
+         background:linear-gradient(180deg,#11161d,#0d1117)}
+  h1{margin:0 0 6px;font-size:23px}
+  h2{font-size:18px;margin:30px 0 12px;border-left:3px solid var(--acc);padding-left:10px}
+  .sub{color:var(--mut)}
+  main{max-width:1100px;margin:0 auto;padding:8px 32px 60px}
+  .grid{display:grid;gap:16px}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .kpi{font-size:30px;font-weight:700}
+  .kpi.good{color:var(--good)} .kpi.acc{color:var(--acc)}
+  .lab{color:var(--mut);font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+  table{width:100%;border-collapse:collapse;background:var(--panel);
+        border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:14px}
+  th{background:#1b222b;color:var(--mut);font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600}
+  .pill.n{background:#13351f;color:var(--good)} .pill.m{background:#26210c;color:var(--warn)}
+  .note{background:#1d1408;border:1px solid #5c3b06;border-radius:10px;padding:16px 18px}
+  .note h3{margin:0 0 8px;color:var(--warn)}
+  .ok{color:var(--good)} .no{color:var(--bad)} .mut{color:var(--mut)}
+  ul{margin:6px 0 0 0;padding-left:20px} li{margin:4px 0}
+  a.btn{display:inline-block;background:var(--acc);color:#fff;text-decoration:none;
+        padding:10px 18px;border-radius:8px;font-weight:600;margin-top:8px}
+  code{background:#1b222b;padding:1px 6px;border-radius:5px;font-size:13px}
+  .small{font-size:13px;color:var(--mut)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Automated Straight-Leg-Raise (SLR / PLSR) Assessment — YOLO11-pose</h1>
+  <div class="sub">Validated against the <b>UCO Physical Rehabilitation</b> dataset's
+    OptiTrack-derived 2D ground truth · results read live from the reproduced pipeline</div>
+  <a class="btn" href="/try">▶ Try the model on an image</a>
+  <a class="btn" href="/video" style="background:#238636">🎞 Test a video clip</a>
+</header>
+
+<main>
+
+  <h2>Headline — reproduced on real data (GPU)</h2>
+  <div class="grid cards">
+    {% set best = metrics.get('n_auto') or metrics.get('n_full') %}
+    <div class="card"><div class="lab">Sessions analysed</div>
+      <div class="kpi acc">{{ (reports|map(attribute='n_sessions')|max) if reports else '—' }}</div>
+      <div class="small">per model · 27 subjects · ex 03/07</div></div>
+    <div class="card"><div class="lab">YOLO11n speed (GPU)</div>
+      <div class="kpi good">{{ '%.0f'|format(metrics.get('n_full',{}).get('mean_fps', 52.5)) }} fps</div>
+      <div class="small">{{ '%.1f'|format(metrics.get('n_full',{}).get('mean_latency_ms', 19.1)) }} ms/frame · GTX 1650 Ti</div></div>
+    <div class="card"><div class="lab">Bias vs OptiTrack GT</div>
+      <div class="kpi">{{ '%+.2f'|format(best.bias) if best else '—' }}°</div>
+      <div class="small">knee angle, side-corrected</div></div>
+    <div class="card"><div class="lab">MAPE vs GT</div>
+      <div class="kpi">{{ '%.1f'|format(best.mape_pct) if best else '—' }}%</div>
+      <div class="small">n = {{ best.n if best else '—' }} frames</div></div>
+  </div>
+
+  {% if ev and ev.get('finetuned_n_test') %}
+  <h2>Method comparison — MediaPipe vs stock vs fine-tuned YOLO11n (held-out subjects 0–9)</h2>
+  <table>
+    <tr><th>Method</th><th>Bias</th><th>95% LoA</th><th>MAPE</th>
+        <th>Track acc &lt;5°</th><th>Pearson r</th><th>RMSSD</th><th>Speed</th></tr>
+    {% for key,lab,cls in [('mediapipe_test','MediaPipe (BlazePose)','m'),
+                           ('stock_n_test','YOLO11n — stock','n'),
+                           ('finetuned_n_test','YOLO11n — fine-tuned','n')] %}
+      {% set e = ev.get(key) %}
+      {% if e %}
+      <tr>
+        <td><span class="pill {{ cls }}">{{ lab }}</span></td>
+        <td>{{ '%+.2f'|format(e.bias) }}°</td>
+        <td>[{{ '%.1f'|format(e.loa_lower) }}, {{ '%.1f'|format(e.loa_upper) }}]°</td>
+        <td>{{ '%.1f'|format(e.mape_pct) }}%</td>
+        <td>{{ '%.1f'|format(e.tracking_acc_pct) }}%</td>
+        <td>{{ '%.2f'|format(e.pearson_r) }}</td>
+        <td>{{ '%.2f'|format(e.mean_rmssd_deg) }}°</td>
+        <td>{{ '%.1f'|format(e.mean_fps) }} fps</td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+  </table>
+  <p class="small"><b>Finding:</b> stock YOLO11n is actually <i>worse</i> than MediaPipe
+  (r ≈ 0). Fine-tuning on 3,500 UCO frames collapses the limits of agreement
+  <b>±32° → ±14°</b>, brings bias to ≈0°, and beats MediaPipe on accuracy <b>and</b>
+  speed (2.4× faster). But MediaPipe has the lowest frame-to-frame jitter (RMSSD) —
+  the manuscript's low-jitter claim for the nano model is <b>not</b> reproduced.</p>
+  <img src="/figures/fig_bland_altman.png" alt="Bland-Altman"
+       style="width:100%;border:1px solid var(--line);border-radius:10px;margin-top:8px">
+  <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+    <img src="/figures/fig_performance.png" style="width:100%;border:1px solid var(--line);border-radius:10px">
+    <img src="/figures/fig_jitter_box.png" style="width:100%;border:1px solid var(--line);border-radius:10px">
+  </div>
+  {% endif %}
+
+  <h2>What is novel here (vs. the reviewed manuscript)</h2>
+  <div class="grid" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <b>1 · Correct angle definitions.</b>
+      <p class="small">The manuscript's Eq. (1) computes the <b>knee</b> angle
+      (hip–knee–ankle) but labels it "trunk-to-thigh". This pipeline computes
+      <b>both</b>, each correctly named, and derives the <b>true</b> trunk-to-thigh
+      (hip-flexion) angle from the <b>shoulder</b> keypoint — which 3-joint
+      hip/knee/ankle tracking physically cannot do.</p>
+    </div>
+    <div class="card">
+      <b>2 · Real motion-capture reference.</b>
+      <p class="small">Validation is against the dataset's own OptiTrack-derived 2D
+      ground truth (<code>p2d.txt</code>), not subjective observation. (The manuscript
+      listed "absence of gold-standard motion capture" as a limitation — yet the
+      dataset ships exactly that.)</p>
+    </div>
+    <div class="card">
+      <b>3 · Automatic leg-side resolution.</b>
+      <p class="small">Side is read per (subject, exercise) from
+      <code>dataset_2d.json</code> (<b>ex 03 = left, ex 07 = right</b>), so the model
+      measures the same limb the ground truth tracks — removing a large source of
+      apparent error.</p>
+    </div>
+    <div class="card">
+      <b>4 · Clusterable per-session reporting.</b>
+      <p class="small">The pipeline emits per-session aggregates so downstream stats
+      can cluster by subject/session, avoiding the frame-level pseudoreplication that
+      inflates significance.</p>
+    </div>
+  </div>
+
+  <h2>Method comparison — Bland–Altman (model knee angle vs OptiTrack GT)</h2>
+  <table>
+    <tr><th>Run</th><th>Mean bias</th><th>95% Limits of Agreement</th>
+        <th>MAPE</th><th>Frames (n)</th></tr>
+    {% for key,lab in [('n_full','YOLO11n · side=r'),('m_full','YOLO11m · side=r'),
+                       ('n_auto','YOLO11n · side=auto (corrected)')] %}
+      {% set mm = metrics.get(key) %}
+      {% if mm %}
+      <tr>
+        <td><span class="pill {{ 'n' if 'n' in key else 'm' }}">{{ lab }}</span></td>
+        <td>{{ '%+.2f'|format(mm.bias) }}°</td>
+        <td>[{{ '%.1f'|format(mm.loa_lower) }}, {{ '%.1f'|format(mm.loa_upper) }}]°</td>
+        <td>{{ '%.1f'|format(mm.mape_pct) }}%</td>
+        <td>{{ mm.n }}</td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+  </table>
+  <p class="small">Inference runs on the NVIDIA GPU (<code>--device 0</code>).
+  Metadata-resolved side (<code>auto</code>) slightly lowers per-session jitter
+  (mean σ 9.13°→8.81°) but does <b>not</b> tighten the pooled Limits of Agreement —
+  the wide LoA reflect genuine monocular pose error in the occluded supine view,
+  reported as measured.</p>
+
+  <h2>Per-run session aggregates (live from CSV)</h2>
+  <table>
+    <tr><th>Report</th><th>Sessions</th><th>Mean fps</th><th>Mean latency</th>
+        <th>Mean σ (jitter)</th><th>Mean RMSSD</th><th>Mean conformity</th></tr>
+    {% for r in reports %}
+    <tr>
+      <td>{{ r.label }} <span class="small">· {{ r.file }}</span></td>
+      <td>{{ r.n_sessions }}</td>
+      <td>{{ r.mean_fps }}</td>
+      <td>{{ r.mean_latency_ms }} ms</td>
+      <td>{{ r.mean_sigma_deg }}°</td>
+      <td>{{ r.mean_rmssd_deg }}°</td>
+      <td>{{ r.mean_conformity_pct }}%</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <p class="small" style="margin-top:30px">Generated by the reproduced pipeline ·
+    <code>uco_slr_pipeline.py</code> + <code>slr_core.py</code> · served by Flask.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "clip": "1/03/cam2.mp4",
+  "resolved_side": "l",
+  "model": "fine-tuned yolo11n",
+  "n_frames": 844,
+  "n_tracked": 844,
+  "fps": 56.5,
+  "latency_ms": 17.71,
+  "sigma_deg": 28.02,
+  "rmssd_deg": 4.03,
+  "peak_hip_flexion_deg": 156.4,
+  "frame_conformity_pct": 0.0,
+  "ba_bias": 0.44,
+  "ba_loa": [
+    -6.2,
+    7.1
+  ],
+  "ba_mape_pct": 1.7,
+  "ba_n": 839,
+  "example_frame_knee_deg": 165.1,
+  "example_frame_trunkthigh_deg": 102.9
+}

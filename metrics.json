@@ -1,0 +1,20 @@
+{
+  "_about": "Bland-Altman (model KNEE angle vs UCO OptiTrack-derived 2D GT) and aggregate speed, reproduced on an NVIDIA GTX 1650 Ti. n_full/m_full use the naive side=r; n_auto uses dataset_2d.json-resolved side (ex03=left, ex07=right).",
+  "dataset": "UCO Physical Rehabilitation (clips_mp4), subjects 0-26, exercises 03 & 07 (supine SLR), camera 2",
+  "n_full": {
+    "model": "yolo11n-pose.pt", "side": "r", "sessions": 54,
+    "bias": -2.56, "loa_lower": -32.7, "loa_upper": 27.6, "mape_pct": 6.9, "n": 41160,
+    "mean_fps": 52.5, "mean_latency_ms": 19.1, "mean_sigma_deg": 9.13, "mean_rmssd_deg": 3.95
+  },
+  "m_full": {
+    "model": "yolo11m-pose.pt", "side": "r", "sessions": 54,
+    "bias": -5.81, "loa_lower": -36.0, "loa_upper": 24.4, "mape_pct": 6.7, "n": 41160,
+    "mean_fps": 27.0, "mean_latency_ms": 37.2, "mean_sigma_deg": 12.16, "mean_rmssd_deg": 2.58
+  },
+  "n_auto": {
+    "model": "yolo11n-pose.pt", "side": "auto (ex03=left, ex07=right)", "sessions": 54,
+    "bias": -3.41, "loa_lower": -35.8, "loa_upper": 29.0, "mape_pct": 7.3, "n": 41160,
+    "mean_fps": 44.3, "mean_latency_ms": 23.5, "mean_sigma_deg": 8.81, "mean_rmssd_deg": 3.95,
+    "_fps_note": "fps measured under GPU contention with the dashboard; clean single-run speed is 52.5 fps (see n_full)"
+  }
+}

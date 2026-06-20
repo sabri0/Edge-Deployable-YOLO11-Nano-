@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Try the model — YOLO11-pose SLR angles</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--ink:#e6edf3;--mut:#8b949e;--acc:#2f81f7;--good:#3fb950}
+  body{margin:0;font:15px/1.55 -apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink)}
+  header{padding:24px 32px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:21px}
+  a{color:var(--acc)}
+  main{max-width:900px;margin:0 auto;padding:24px 32px 60px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:18px}
+  label{display:block;margin:10px 0 4px;color:var(--mut);font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+  select,input[type=file]{background:#0d1117;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:8px}
+  button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:11px 22px;font-weight:600;cursor:pointer;margin-top:14px}
+  button:disabled{opacity:.5;cursor:default}
+  img{max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:12px}
+  .row{display:flex;gap:24px;flex-wrap:wrap}
+  .kpi{font-size:26px;font-weight:700;color:var(--good)}
+  .lab{color:var(--mut);font-size:12px;text-transform:uppercase}
+  .mut{color:var(--mut);font-size:13px}
+  pre{white-space:pre-wrap}
+</style>
+</head>
+<body>
+<header><h1>▶ Try YOLO11-pose on your image &nbsp;
+  <a href="/" style="font-size:14px">← dashboard</a> &nbsp;
+  <a href="/video" style="font-size:14px">🎞 video mode →</a></h1></header>
+<main>
+  <div class="card">
+    <p class="mut">Upload a single frame (JPG/PNG) showing a person. The model runs on the
+    GPU and returns the annotated skeleton with the <b>knee</b> angle and the
+    <b>true trunk-to-thigh (hip-flexion)</b> angle.</p>
+    <div class="row">
+      <div>
+        <label>Image frame</label>
+        <input type="file" id="file" accept="image/*">
+      </div>
+      <div>
+        <label>Leg side</label>
+        <select id="side"><option value="r">right</option><option value="l">left</option></select>
+      </div>
+      <div>
+        <label>Model</label>
+        <select id="model">
+          <option value="yolo11n-pose.pt">YOLO11n (proposed)</option>
+          <option value="yolo11m-pose.pt">YOLO11m (reference)</option>
+        </select>
+      </div>
+    </div>
+    <button id="go">Run inference</button>
+  </div>
+
+  <div class="card" id="out" style="display:none">
+    <div class="row">
+      <div><div class="lab">Knee angle</div><div class="kpi" id="knee">—</div></div>
+      <div><div class="lab">Trunk-to-thigh (hip)</div><div class="kpi" id="hip">—</div></div>
+      <div><div class="lab">Latency</div><div class="kpi" id="lat">—</div></div>
+      <div><div class="lab">Device</div><div class="kpi" id="dev">—</div></div>
+    </div>
+    <img id="anno">
+    <p class="mut" id="meta"></p>
+  </div>
+  <div class="card" id="err" style="display:none;border-color:#8a3b3b"></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+$("go").onclick = async () => {
+  const f = $("file").files[0];
+  if(!f){ alert("Choose an image first"); return; }
+  $("go").disabled = true; $("go").textContent = "Running…";
+  $("err").style.display = "none";
+  const fd = new FormData(); fd.append("file", f);
+  const url = `/api/infer?side=${$("side").value}&model=${encodeURIComponent($("model").value)}`;
+  try{
+    const r = await fetch(url, {method:"POST", body:fd});
+    const j = await r.json();
+    if(j.error){ $("err").style.display="block"; $("err").textContent = "⚠ " + j.error; }
+    else{
+      $("out").style.display = "block";
+      $("knee").textContent = j.knee_angle_deg + "°";
+      $("hip").textContent  = j.trunk_thigh_angle_deg + "°";
+      $("lat").textContent  = j.latency_ms + " ms";
+      $("dev").textContent  = j.device;
+      $("anno").src = "data:image/jpeg;base64," + j.annotated_jpg_b64;
+      $("meta").textContent = `model=${j.model} · persons detected=${j.persons} · side=${j.side}`;
+    }
+  }catch(e){ $("err").style.display="block"; $("err").textContent = "⚠ " + e; }
+  $("go").disabled = false; $("go").textContent = "Run inference";
+};
+</script>
+</body>
+</html>

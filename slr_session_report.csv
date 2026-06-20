@@ -1,0 +1,2 @@
+cv_pct,fps,frame_conformity_pct,latency_ms,n_frames,n_tracked,peak_hip_flexion_deg,rmssd_deg,session_conformant,sigma_deg,source
+12.28,57.4,0.0,17.43,60,60,159.0,2.6,False,3.29,person_clip.mp4

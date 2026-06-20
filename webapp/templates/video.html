@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test video — full SLR pipeline (UCO dataset)</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--ink:#e6edf3;--mut:#8b949e;--acc:#2f81f7;--good:#3fb950;--warn:#d29922}
+  body{margin:0;font:15px/1.55 -apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink)}
+  header{padding:24px 32px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:21px} a{color:var(--acc)}
+  main{max-width:960px;margin:0 auto;padding:24px 32px 60px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:18px}
+  label{display:block;margin:10px 0 4px;color:var(--mut);font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+  select{background:#0d1117;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:8px;min-width:90px}
+  button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:11px 22px;font-weight:600;cursor:pointer;margin-top:14px}
+  button:disabled{opacity:.5;cursor:default}
+  img{max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:14px}
+  .row{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:6px}
+  .kpi{font-size:23px;font-weight:700;color:var(--good)} .kpi.acc{color:var(--acc)} .kpi.warn{color:var(--warn)}
+  .lab{color:var(--mut);font-size:12px;text-transform:uppercase}
+  .mut{color:var(--mut);font-size:13px}
+  .spin{display:inline-block;margin-left:8px;color:var(--mut)}
+  .ba{background:#0f1c12;border:1px solid #1d572f;border-radius:8px;padding:12px 14px;margin-top:12px}
+</style>
+</head>
+<body>
+<header><h1>🎞 Test-video application — UCO dataset clips &nbsp;
+  <a href="/" style="font-size:14px">← dashboard</a> &nbsp;
+  <a href="/try" style="font-size:14px">image mode →</a></h1></header>
+<main>
+  <div class="card">
+    <p class="mut">Pick a clip already in <code>datasets/clips_mp4</code>. The
+    <b>full SLR pipeline</b> runs on the GPU frame-by-frame (same code path as
+    <code>uco_slr_pipeline.py</code>) and, where the OptiTrack <code>p2d.txt</code>
+    ground truth exists, reports the <b>per-clip Bland–Altman</b> agreement.
+    Exercises <b>03 (left leg)</b> and <b>07 (right leg)</b> are the supine SLR.</p>
+    <div class="row">
+      <div><label>Subject</label><select id="subject"></select></div>
+      <div><label>Exercise</label><select id="exercise"></select></div>
+      <div><label>Camera</label>
+        <select id="camera">
+          <option>cam0</option><option>cam1</option>
+          <option selected>cam2</option><option>cam3</option><option>cam4</option>
+        </select></div>
+      <div><label>Side</label>
+        <select id="side">
+          <option value="auto" selected>auto (from metadata)</option>
+          <option value="r">right</option><option value="l">left</option>
+        </select></div>
+      <div><label>Model</label>
+        <select id="model">
+          <option value="yolo11n-pose.pt">YOLO11n (proposed)</option>
+          <option value="yolo11m-pose.pt">YOLO11m (reference)</option>
+        </select></div>
+    </div>
+    <button id="go">Run pipeline on clip</button>
+    <span class="spin" id="spin"></span>
+    <div class="mut" id="status" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" id="out" style="display:none">
+    <div class="mut" id="cliphdr"></div>
+    <div class="cards">
+      <div><div class="lab">Frames / tracked</div><div class="kpi acc" id="frames">—</div></div>
+      <div><div class="lab">Speed (GPU)</div><div class="kpi" id="fps">—</div></div>
+      <div><div class="lab">Latency</div><div class="kpi" id="lat">—</div></div>
+      <div><div class="lab">Jitter σ</div><div class="kpi" id="sigma">—</div></div>
+      <div><div class="lab">RMSSD</div><div class="kpi" id="rmssd">—</div></div>
+      <div><div class="lab">Peak hip flexion</div><div class="kpi" id="peak">—</div></div>
+      <div><div class="lab">Frame conformity</div><div class="kpi" id="conf">—</div></div>
+    </div>
+    <div class="ba" id="babox" style="display:none">
+      <b>Bland–Altman vs OptiTrack GT (knee angle):</b>
+      <span id="ba"></span>
+    </div>
+    <img id="plot">
+  </div>
+  <div class="card" id="err" style="display:none;border-color:#8a3b3b"></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let TREE = {};
+
+async function loadTree(){
+  const r = await fetch("/api/dataset_videos");
+  const j = await r.json();
+  if(!j.root_exists){ $("status").textContent = "⚠ datasets/clips_mp4 not found on server."; return; }
+  TREE = j.tree;
+  const subs = Object.keys(TREE);
+  $("subject").innerHTML = subs.map(s=>`<option>${s}</option>`).join("");
+  fillExercises();
+}
+function fillExercises(){
+  const s = $("subject").value, exs = TREE[s] || [];
+  // put SLR exercises (03/07) first
+  const order = e => (e==="03"?0:e==="07"?1:2+parseInt(e));
+  exs.sort((a,b)=>order(a)-order(b));
+  $("exercise").innerHTML = exs.map(e=>{
+    const tag = e==="03"?" (SLR-left)":e==="07"?" (SLR-right)":"";
+    return `<option value="${e}">${e}${tag}</option>`;
+  }).join("");
+}
+$("subject").onchange = fillExercises;
+
+$("go").onclick = async () => {
+  $("go").disabled = true; $("spin").textContent = "processing on GPU…"; $("err").style.display="none";
+  const q = new URLSearchParams({subject:$("subject").value, exercise:$("exercise").value,
+    camera:$("camera").value, side:$("side").value, model:$("model").value});
+  try{
+    const r = await fetch("/api/infer_dataset?"+q.toString());
+    const j = await r.json();
+    if(j.error){ $("err").style.display="block"; $("err").textContent = "⚠ " + j.error; }
+    else{
+      const s = j.summary;
+      $("out").style.display="block";
+      $("cliphdr").textContent = `clip ${j.clip} · model=${j.model} · device=${j.device} · resolved side=${j.resolved_side}`;
+      $("frames").textContent = s.n_frames + " / " + s.n_tracked;
+      $("fps").textContent = (s.fps ?? "—") + " fps";
+      $("lat").textContent = (s.latency_ms ?? "—") + " ms";
+      $("sigma").textContent = s.sigma_deg + "°";
+      $("rmssd").textContent = s.rmssd_deg + "°";
+      $("peak").textContent = s.peak_hip_flexion_deg + "°";
+      $("conf").textContent = s.frame_conformity_pct + "%";
+      if(j.bland_altman){
+        $("babox").style.display="block";
+        const b=j.bland_altman;
+        $("ba").textContent = ` bias ${b.bias>=0?'+':''}${b.bias}°, 95% LoA [${b.loa_lower}, ${b.loa_upper}]°, MAPE ${b.mape_pct}%, n=${b.n}`;
+      } else $("babox").style.display="none";
+      $("plot").src = "data:image/png;base64," + j.plot_png_b64;
+    }
+  }catch(e){ $("err").style.display="block"; $("err").textContent = "⚠ " + e; }
+  $("go").disabled=false; $("spin").textContent="";
+};
+loadTree();
+</script>
+</body>
+</html>
